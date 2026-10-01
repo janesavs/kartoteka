@@ -96,6 +96,7 @@ body {
 
 .stage { perspective: 1400px; margin-bottom: 18px; }
 .card-btn { all: unset; display: block; width: 100%; cursor: pointer; }
+.card-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 14px; }
 .card { position: relative; width: 100%; height: 230px; border-radius: 14px; transform-style: preserve-3d; transition: transform .45s cubic-bezier(.4,.1,.2,1); }
 .card.flipped { transform: rotateY(180deg); }
 .face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 14px; background: var(--card); box-shadow: 0 10px 28px rgba(0,0,0,.35), 0 1px 0 rgba(255,255,255,.4) inset; display: flex; flex-direction: column; overflow: hidden; }
@@ -108,6 +109,17 @@ body {
 .face-tag { position: absolute; bottom: 14px; left: 48px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .1em; color: var(--ink-soft); }
 .back { transform: rotateY(180deg); background: var(--card-back); }
 .hint { text-align: center; font-size: 12px; color: #D8C9B8; margin: -6px 0 18px; }
+
+.speak-btn {
+  position: absolute; top: 14px; right: 16px; z-index: 2;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: rgba(184,67,47,.12); border: 1.5px solid rgba(184,67,47,.3);
+  color: var(--accent); font-size: 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.speak-btn:hover { background: rgba(184,67,47,.2); }
+.speak-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.speak-btn.inline { position: static; display: inline-flex; margin-left: 8px; vertical-align: middle; }
 
 .assess { display: flex; gap: 10px; }
 .assess button { flex: 1; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; padding: 13px 8px; cursor: pointer; }
@@ -138,6 +150,7 @@ body {
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .note { margin-top: 22px; font-size: 11.5px; color: #C9BAA4; text-align: center; line-height: 1.6; }
 
+
 @media (max-width: 380px) { .word-cz { font-size: 26px; } .card { height: 210px; } }
 
 </style>
@@ -163,6 +176,39 @@ var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 var app = document.getElementById("app");
+
+/* ============ VÝSLOVNOST (Web Speech API) ============ */
+var synth = window.speechSynthesis || null;
+var czVoice = null;
+function pickCzVoice(){
+  if (!synth) return;
+  var voices = synth.getVoices() || [];
+  czVoice = voices.find(function(v){ return v.lang && v.lang.toLowerCase().indexOf("cs") === 0; }) || null;
+}
+if (synth) {
+  pickCzVoice();
+  synth.onvoiceschanged = pickCzVoice;
+}
+function speakCzech(text){
+  if (!synth) return;
+  try {
+    synth.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = "cs-CZ";
+    if (czVoice) u.voice = czVoice;
+    u.rate = 0.9;
+    synth.speak(u);
+  } catch (e) { /* tiché selhání — tlačítko prostě nic neudělá */ }
+}
+function makeSpeakBtn(text, inline){
+  var b = document.createElement("button");
+  b.type = "button";
+  b.className = "speak-btn" + (inline ? " inline" : "");
+  b.setAttribute("aria-label", "Přehrát výslovnost");
+  b.textContent = "🔊";
+  b.addEventListener("click", function(e){ e.stopPropagation(); e.preventDefault(); speakCzech(text); });
+  return b;
+}
 
 var CATEGORIES = [];
 var WORDS = [];
@@ -370,24 +416,33 @@ function renderCard(){
   var backCls = frontIsCz ? "word-ru" : "word-cz";
 
   box.innerHTML =
-    '<div class="stage"><button class="card-btn" id="flipBtn" aria-label="Otočit kartičku">' +
+    '<div class="stage"><div class="card-btn" id="flipBtn" role="button" tabindex="0" aria-label="Otočit kartičku">' +
       '<div class="card" id="cardEl">' +
         '<div class="face front"><div class="punch"></div><div class="face-inner"><div class="' + frontCls + '">' + esc(frontTxt) + '</div></div><div class="face-tag">klepni pro překlad</div></div>' +
         '<div class="face back"><div class="punch"></div><div class="face-inner"><div class="' + backCls + '">' + esc(backTxt) + '</div></div><div class="face-tag">' + esc(catLabel(curCard.category_id)) + '</div></div>' +
       '</div>' +
-    '</button></div>' +
+    '</div></div>' +
     '<div class="hint">Klepni na kartičku, pak ohodnoť, jak dobře jsi to věděla.</div>' +
     '<div class="assess"><button class="btn-no" id="btnNo" disabled>😕 Ještě ne</button><button class="btn-yes" id="btnYes" disabled>✓ Umím</button></div>';
 
   var cardEl = document.getElementById("cardEl");
-  document.getElementById("flipBtn").addEventListener("click", function(){
+  var flipEl = document.getElementById("flipBtn");
+  function doFlip(){
     cardEl.classList.toggle("flipped");
     var flipped = cardEl.classList.contains("flipped");
     document.getElementById("btnYes").disabled = !flipped;
     document.getElementById("btnNo").disabled = !flipped;
-  });
+  }
+  flipEl.addEventListener("click", doFlip);
+  flipEl.addEventListener("keydown", function(e){ if (e.key === "Enter" || e.key === " ") { e.preventDefault(); doFlip(); } });
   document.getElementById("btnYes").addEventListener("click", function(){ bumpUp(curCard.id); setTimeout(renderCard, 180); });
   document.getElementById("btnNo").addEventListener("click", function(){ bumpDown(curCard.id); setTimeout(renderCard, 180); });
+
+  if (synth) {
+    var czFaceSel = frontIsCz ? ".front .face-inner" : ".back .face-inner";
+    var czFaceEl = cardEl.querySelector(czFaceSel);
+    if (czFaceEl) czFaceEl.appendChild(makeSpeakBtn(curCard.cz, false));
+  }
 }
 
 /* ---------- QUIZ ---------- */
@@ -399,8 +454,12 @@ function renderQuiz(){
   var czToRu = direction === "cz-ru";
 
   box.innerHTML =
-    '<div class="quiz-prompt"><div class="quiz-eyebrow">' + (czToRu ? "co to znamená?" : "jak se to řekne česky?") + '</div><div class="quiz-word">' + esc(czToRu ? w.cz : w.ru) + '</div></div>' +
+    '<div class="quiz-prompt"><div class="quiz-eyebrow">' + (czToRu ? "co to znamená?" : "jak se to řekne česky?") + '</div><div class="quiz-word" id="quizWordEl">' + esc(czToRu ? w.cz : w.ru) + '</div></div>' +
     '<div class="opts" id="quizOpts"></div>';
+
+  if (synth && czToRu) {
+    document.getElementById("quizWordEl").appendChild(makeSpeakBtn(w.cz, true));
+  }
 
   var distractors = [], tries = 0;
   while (distractors.length < 3 && tries < 50 && pool.length > 1) {
@@ -438,9 +497,13 @@ function renderType(){
   var czToRu = direction === "cz-ru";
 
   box.innerHTML =
-    '<div class="type-prompt"><div class="type-eyebrow">' + (czToRu ? "napiš česky" : "napiš rusky") + '</div><div class="type-word">' + esc(czToRu ? curType.ru : curType.cz) + '</div></div>' +
+    '<div class="type-prompt"><div class="type-eyebrow">' + (czToRu ? "napiš česky" : "napiš rusky") + '</div><div class="type-word" id="typeWordEl">' + esc(czToRu ? curType.ru : curType.cz) + '</div></div>' +
     '<div class="type-input-row"><label class="sr-only" for="typeInput">Odpověď</label><input class="type-input" id="typeInput" type="text" placeholder="…" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="type-check" id="typeCheckBtn">Zkontrolovat</button></div>' +
     '<div id="typeFeedback"></div>';
+
+  if (synth && !czToRu) {
+    document.getElementById("typeWordEl").appendChild(makeSpeakBtn(curType.cz, true));
+  }
 
   var input = document.getElementById("typeInput");
   input.focus();
@@ -453,11 +516,15 @@ function renderType(){
     var answer = czToRu2 ? curType.cz : curType.ru;
     var fb = document.getElementById("typeFeedback");
     if (val === answer.trim().toLowerCase()) {
-      fb.innerHTML = '<div class="type-feedback fb-ok">✓ Správně — <b>' + esc(answer) + '</b></div>';
+      fb.innerHTML = '<div class="type-feedback fb-ok">✓ Správně — <b id="fbAnswer">' + esc(answer) + '</b></div>';
       bumpUp(curType.id);
     } else {
-      fb.innerHTML = '<div class="type-feedback fb-no">Správně je: <b>' + esc(answer) + '</b></div>';
+      fb.innerHTML = '<div class="type-feedback fb-no">Správně je: <b id="fbAnswer">' + esc(answer) + '</b></div>';
       bumpDown(curType.id);
+    }
+    if (synth && czToRu2) {
+      var fbAnswerEl = document.getElementById("fbAnswer");
+      if (fbAnswerEl) fbAnswerEl.appendChild(makeSpeakBtn(answer, true));
     }
     setTimeout(renderType, 1300);
   }
