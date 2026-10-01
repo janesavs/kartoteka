@@ -355,17 +355,43 @@ function renderTrainer(){
     '<div class="note">Pokrok se ukládá k vašemu účtu — funguje na každém zařízení.</div>';
 
   var catSelect = document.getElementById("catSelect");
-  CATEGORIES.forEach(function(c){
-    var o = document.createElement("option");
-    o.value = c.id; o.textContent = c.label;
-    catSelect.appendChild(o);
-  });
-  catSelect.value = curCat;
+  var levelSelect = document.getElementById("levelSelect");
+
+  function categoriesForLevel(level){
+    var idsWithWords = {};
+    WORDS.forEach(function(w){ if (w.level === level) idsWithWords[w.category_id] = true; });
+    return CATEGORIES.filter(function(c){ return idsWithWords[c.id]; });
+  }
+
+  function populateCatSelect(){
+    var avail = categoriesForLevel(curLevel);
+    catSelect.innerHTML = "";
+    if (!avail.length) {
+      var o0 = document.createElement("option");
+      o0.value = ""; o0.textContent = "žádné téma na této úrovni";
+      catSelect.appendChild(o0);
+      curCat = null;
+      return;
+    }
+    avail.forEach(function(c){
+      var o = document.createElement("option");
+      o.value = c.id; o.textContent = c.label;
+      catSelect.appendChild(o);
+    });
+    if (!avail.some(function(c){ return c.id === curCat; })) curCat = avail[0].id;
+    catSelect.value = curCat;
+  }
+
+  populateCatSelect();
   catSelect.addEventListener("change", function(e){ curCat = e.target.value; renderStats(); refreshCurrentMode(); });
 
-  var levelSelect = document.getElementById("levelSelect");
   levelSelect.value = curLevel;
-  levelSelect.addEventListener("change", function(e){ curLevel = e.target.value; renderStats(); refreshCurrentMode(); });
+  levelSelect.addEventListener("change", function(e){
+    curLevel = e.target.value;
+    populateCatSelect();
+    renderStats();
+    refreshCurrentMode();
+  });
 
   document.getElementById("logoutBtn").addEventListener("click", function(){ sb.auth.signOut().then(boot); });
 
