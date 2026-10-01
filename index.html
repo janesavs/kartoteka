@@ -71,10 +71,11 @@ body {
 .who { font-size: 11.5px; color: #D8C9B8; font-family: 'IBM Plex Mono', monospace; }
 .logout { background: none; border: 1px solid rgba(255,255,255,.22); color: #EBDFCB; font-size: 11.5px; font-weight: 600; border-radius: 8px; padding: 5px 11px; cursor: pointer; }
 
-.cat-row { display: flex; justify-content: center; margin: 14px 0 10px; }
+.filter-row { display: flex; justify-content: center; gap: 8px; margin: 14px 0 10px; flex-wrap: wrap; }
 .cat-pill { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); color: #EBDFCB; padding: 6px 14px; border-radius: 20px; display: flex; align-items: center; gap: 6px; }
 .cat-pill select { background: transparent; border: none; color: #FBF6EA; font-family: inherit; font-size: 12px; font-weight: 600; outline: none; }
 .cat-pill select option { color: #2B2420; }
+.level-pill { background: rgba(184,67,47,.22); border-color: rgba(184,67,47,.4); }
 
 .dir-row { display: flex; justify-content: center; margin-bottom: 16px; }
 .dir-toggle { display: flex; background: rgba(0,0,0,.2); border-radius: 10px; padding: 3px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 700; }
@@ -168,6 +169,7 @@ var WORDS = [];
 var progress = {};     // word_id -> box (1-3)
 var direction = "cz-ru";
 var curCat = null;
+var curLevel = "A1";
 var activeMode = "cards";
 var currentUser = null;
 
@@ -259,7 +261,7 @@ function setBox(wordId, box){
 function bumpUp(id){ setBox(id, Math.min(3, (progress[id]||1) + 1)); }
 function bumpDown(id){ setBox(id, 1); }
 
-function poolForCat(){ return WORDS.filter(function(w){ return w.category_id === curCat; }); }
+function poolForCat(){ return WORDS.filter(function(w){ return w.category_id === curCat && w.level === curLevel; }); }
 function catLabel(id){ var c = CATEGORIES.find(function(x){ return x.id === id; }); return c ? c.label : ""; }
 
 function weightedPick(){
@@ -284,7 +286,10 @@ function renderStats(){
 function renderTrainer(){
   app.innerHTML =
     '<div class="topbar"><div class="who">' + currentUser.email + '</div><button class="logout" id="logoutBtn">Odhlásit se</button></div>' +
-    '<div class="cat-row"><div class="cat-pill">🗃️<select id="catSelect" aria-label="Vyberte téma"></select></div></div>' +
+    '<div class="filter-row">' +
+      '<div class="cat-pill">🗃️<select id="catSelect" aria-label="Vyberte téma"></select></div>' +
+      '<div class="cat-pill level-pill">📶<select id="levelSelect" aria-label="Vyberte úroveň"><option value="A1">A1</option><option value="A2">A2</option></select></div>' +
+    '</div>' +
     '<div class="dir-row"><div class="dir-toggle" role="group" aria-label="Směr překladu">' +
       '<button class="dir-btn" id="dirCzRu" aria-pressed="true">CZ → RU</button>' +
       '<button class="dir-btn" id="dirRuCz" aria-pressed="false">RU → CZ</button>' +
@@ -311,6 +316,10 @@ function renderTrainer(){
   });
   catSelect.value = curCat;
   catSelect.addEventListener("change", function(e){ curCat = e.target.value; renderStats(); refreshCurrentMode(); });
+
+  var levelSelect = document.getElementById("levelSelect");
+  levelSelect.value = curLevel;
+  levelSelect.addEventListener("change", function(e){ curLevel = e.target.value; renderStats(); refreshCurrentMode(); });
 
   document.getElementById("logoutBtn").addEventListener("click", function(){ sb.auth.signOut().then(boot); });
 
