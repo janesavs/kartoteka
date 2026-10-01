@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kartotéka</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗃️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+
+:root {
+  --bg: #4A3F35; --bg-2: #5a4c3f;
+  --card: #FBF6EA; --card-back: #F3ECDB;
+  --ink: #2B2420; --ink-soft: #6b6155;
+  --accent: #B8432F; --accent-deep: #8a2f20;
+  --success: #4A7A5C; --success-soft: #E1EBE3;
+  --needs: #B8860B; --needs-soft: #F3E9D2;
+  --rule: #d8cdb4; --focus: #FDE047;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; min-height: 100vh;
+  background: radial-gradient(ellipse at 18% -8%, var(--bg-2), transparent 58%), var(--bg);
+  font-family: 'IBM Plex Sans', sans-serif; color: #F1E9DC;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 26px 18px 40px;
+}
+.wrap { width: 100%; max-width: 440px; }
+
+.hd { text-align: center; margin-bottom: 18px; }
+.hd-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: .14em; color: #D8C9B8; opacity: .8; }
+.hd h1 { font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 700; margin: 4px 0 0; color: #FBF6EA; }
+.hd h1 .dot { color: var(--accent); }
+
+/* ===== AUTH SCREEN ===== */
+.auth-card {
+  background: var(--card); border-radius: 14px; padding: 28px 24px;
+  box-shadow: 0 10px 28px rgba(0,0,0,.35); position: relative;
+}
+.auth-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 10px; background: var(--accent); border-radius: 14px 14px 0 0; }
+.auth-title { font-family: 'IBM Plex Mono', monospace; font-size: 17px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+.auth-sub { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 18px; line-height: 1.5; }
+.field { margin-bottom: 12px; }
+.field label { display: block; font-size: 11.5px; font-weight: 600; color: var(--ink-soft); margin-bottom: 5px; }
+.field input {
+  width: 100%; font-family: 'IBM Plex Sans', sans-serif; font-size: 14.5px;
+  padding: 11px 13px; border-radius: 9px; border: 1.5px solid #d8cdb4;
+  background: #fff; color: var(--ink);
+}
+.field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.auth-submit {
+  width: 100%; margin-top: 6px; font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 700; font-size: 14.5px; background: var(--accent); color: #fff;
+  border: none; border-radius: 9px; padding: 12px; cursor: pointer;
+}
+.auth-submit:disabled { opacity: .55; cursor: default; }
+.auth-switch { text-align: center; margin-top: 14px; font-size: 13px; color: var(--ink-soft); }
+.auth-switch button { background: none; border: none; color: var(--accent); font-weight: 700; cursor: pointer; font-size: 13px; padding: 0; }
+.auth-msg { font-size: 12.5px; border-radius: 8px; padding: 9px 12px; margin-bottom: 12px; }
+.auth-msg.err { background: #F3DAD3; color: var(--accent-deep); }
+.auth-msg.ok { background: var(--success-soft); color: var(--success); }
+
+/* ===== LOADING ===== */
+.loading { text-align: center; padding: 60px 0; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #D8C9B8; }
+
+/* ===== TOP BAR ===== */
+.topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.who { font-size: 11.5px; color: #D8C9B8; font-family: 'IBM Plex Mono', monospace; }
+.logout { background: none; border: 1px solid rgba(255,255,255,.22); color: #EBDFCB; font-size: 11.5px; font-weight: 600; border-radius: 8px; padding: 5px 11px; cursor: pointer; }
+
+.cat-row { display: flex; justify-content: center; margin: 14px 0 10px; }
+.cat-pill { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); color: #EBDFCB; padding: 6px 14px; border-radius: 20px; display: flex; align-items: center; gap: 6px; }
+.cat-pill select { background: transparent; border: none; color: #FBF6EA; font-family: inherit; font-size: 12px; font-weight: 600; outline: none; }
+.cat-pill select option { color: #2B2420; }
+
+.dir-row { display: flex; justify-content: center; margin-bottom: 16px; }
+.dir-toggle { display: flex; background: rgba(0,0,0,.2); border-radius: 10px; padding: 3px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 700; }
+.dir-btn { border: none; background: transparent; color: #CBBBA3; padding: 7px 13px; border-radius: 7px; cursor: pointer; }
+.dir-btn[aria-pressed="true"] { background: var(--accent); color: #fff; }
+
+.tabs { display: flex; gap: 6px; margin: 0 0 20px; background: rgba(0,0,0,.18); border-radius: 12px; padding: 4px; }
+.tab { flex: 1; text-align: center; font-size: 13px; font-weight: 600; color: #D8C9B8; padding: 9px 6px; border-radius: 9px; border: none; background: transparent; cursor: pointer; }
+.tab[aria-selected="true"] { background: var(--card); color: var(--ink); }
+
+.stats { display: flex; gap: 10px; margin-bottom: 20px; }
+.stat { flex: 1; border-radius: 12px; padding: 12px 10px; text-align: center; border: 1px solid rgba(255,255,255,.1); }
+.stat-learning { background: rgba(184,134,11,.14); }
+.stat-known { background: rgba(74,122,92,.16); }
+.stat-n { font-family: 'IBM Plex Mono', monospace; font-size: 21px; font-weight: 700; }
+.stat-learning .stat-n { color: #E8C878; } .stat-known .stat-n { color: #8FCBA3; }
+.stat-lbl { font-size: 10.5px; color: #D8C9B8; margin-top: 2px; }
+
+.stage { perspective: 1400px; margin-bottom: 18px; }
+.card-btn { all: unset; display: block; width: 100%; cursor: pointer; }
+.card { position: relative; width: 100%; height: 230px; border-radius: 14px; transform-style: preserve-3d; transition: transform .45s cubic-bezier(.4,.1,.2,1); }
+.card.flipped { transform: rotateY(180deg); }
+.face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 14px; background: var(--card); box-shadow: 0 10px 28px rgba(0,0,0,.35), 0 1px 0 rgba(255,255,255,.4) inset; display: flex; flex-direction: column; overflow: hidden; }
+.face::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 10px; background: var(--accent); }
+.face::after { content: ''; position: absolute; left: 34px; top: 10px; bottom: 0; width: 1px; background: var(--rule); }
+.face-inner { flex: 1; display: flex; align-items: center; justify-content: center; padding: 26px 26px 26px 48px; text-align: left; position: relative; }
+.punch { position: absolute; left: 14px; top: 34px; width: 9px; height: 9px; border-radius: 50%; background: var(--bg); box-shadow: 0 0 0 1px rgba(0,0,0,.15) inset; }
+.word-cz { font-family: 'IBM Plex Mono', monospace; font-size: 32px; font-weight: 700; color: var(--ink); line-height: 1.15; word-break: break-word; }
+.word-ru { font-family: 'IBM Plex Sans', sans-serif; font-size: 24px; font-weight: 500; color: var(--ink); }
+.face-tag { position: absolute; bottom: 14px; left: 48px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .1em; color: var(--ink-soft); }
+.back { transform: rotateY(180deg); background: var(--card-back); }
+.hint { text-align: center; font-size: 12px; color: #D8C9B8; margin: -6px 0 18px; }
+
+.assess { display: flex; gap: 10px; }
+.assess button { flex: 1; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; padding: 13px 8px; cursor: pointer; }
+.btn-no { background: var(--needs-soft); color: var(--needs); }
+.btn-yes { background: var(--success-soft); color: var(--success); }
+.assess button:disabled { opacity: .45; cursor: default; }
+
+.quiz-prompt, .type-prompt { background: var(--card); border-radius: 14px; box-shadow: 0 10px 28px rgba(0,0,0,.35); padding: 30px 24px; text-align: center; margin-bottom: 16px; position: relative; }
+.quiz-prompt::before, .type-prompt::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 10px; background: var(--accent); border-radius: 14px 14px 0 0; }
+.quiz-eyebrow, .type-eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-soft); letter-spacing: .08em; }
+.quiz-word { font-family: 'IBM Plex Mono', monospace; font-size: 30px; font-weight: 700; color: var(--ink); margin-top: 6px; }
+.type-word { font-family: 'IBM Plex Sans', sans-serif; font-size: 27px; font-weight: 600; color: var(--ink); margin-top: 6px; }
+.opts { display: flex; flex-direction: column; gap: 9px; }
+.opt { font-size: 14.5px; font-weight: 600; background: rgba(255,255,255,.07); border: 1.5px solid rgba(255,255,255,.18); color: #F1E9DC; border-radius: 10px; padding: 13px 16px; text-align: left; cursor: pointer; }
+.opt.correct { background: var(--success-soft); border-color: var(--success); color: var(--success); }
+.opt.wrong { background: #F3DAD3; border-color: var(--accent); color: var(--accent-deep); }
+.opt:disabled { cursor: default; }
+
+.type-input-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.type-input { flex: 1; font-family: 'IBM Plex Mono', monospace; font-size: 17px; padding: 13px 14px; border-radius: 10px; border: 1.5px solid rgba(255,255,255,.22); background: rgba(255,255,255,.07); color: #FBF6EA; }
+.type-input::placeholder { color: #b8a995; }
+.type-check { font-weight: 700; font-size: 14px; background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: 0 20px; cursor: pointer; }
+.type-feedback { margin-top: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 14px; border-radius: 10px; padding: 12px; text-align: left; }
+.fb-ok { background: var(--success-soft); color: var(--success); }
+.fb-no { background: #F3DAD3; color: var(--accent-deep); }
+.fb-no b { text-decoration: underline; text-decoration-color: var(--accent); }
+
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.note { margin-top: 22px; font-size: 11.5px; color: #C9BAA4; text-align: center; line-height: 1.6; }
+
+@media (max-width: 380px) { .word-cz { font-size: 26px; } .card { height: 210px; } }
+
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="hd">
+    <div class="hd-label">slovní zásoba · čeština</div>
+    <h1>kartotéka<span class="dot">.</span></h1>
+  </div>
+
+  <div id="app"><div class="loading">Načítám…</div></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+// ====== NASTAVENÍ — doplněno pro tento projekt ======
+var SUPABASE_URL = "https://hivxajqgvygluwhdwxuw.supabase.co";
+var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhpdnhhanFndnlnbHV3aGR3eHV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA4NTIyMzQsImV4cCI6MjEwNjQyODIzNH0.O3B0BzvW8zpTvAzTTbQdb-iDfFFu-fRN2xlL7MYvpJM";
+
+var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+var app = document.getElementById("app");
+
+var CATEGORIES = [];
+var WORDS = [];
+var progress = {};     // word_id -> box (1-3)
+var direction = "cz-ru";
+var curCat = null;
+var activeMode = "cards";
+var currentUser = null;
+
+/* ============ AUTH SCREEN ============ */
+function renderAuth(mode, msg){
+  mode = mode || "login";
+  app.innerHTML =
+    '<div class="auth-card">' +
+      '<div class="auth-title">' + (mode === "login" ? "Přihlášení" : "Registrace") + '</div>' +
+      '<div class="auth-sub">' + (mode === "login" ? "Přihlaste se ke svému pokroku." : "Vytvořte si účet — pokrok půjde s vámi na každé zařízení.") + '</div>' +
+      (msg ? '<div class="auth-msg ' + msg.type + '">' + msg.text + '</div>' : '') +
+      '<div class="field"><label for="email">E-mail</label><input id="email" type="email" autocomplete="email"></div>' +
+      '<div class="field"><label for="pass">Heslo</label><input id="pass" type="password" autocomplete="' + (mode === "login" ? "current-password" : "new-password") + '"></div>' +
+      '<button class="auth-submit" id="submitBtn">' + (mode === "login" ? "Přihlásit se" : "Zaregistrovat se") + '</button>' +
+      '<div class="auth-switch">' +
+        (mode === "login" ? 'Nemáte účet? <button id="switchBtn">Zaregistrovat se</button>' : 'Už máte účet? <button id="switchBtn">Přihlásit se</button>') +
+      '</div>' +
+    '</div>';
+
+  document.getElementById("switchBtn").addEventListener("click", function(){
+    renderAuth(mode === "login" ? "signup" : "login");
+  });
+
+  document.getElementById("submitBtn").addEventListener("click", function(){
+    var email = document.getElementById("email").value.trim();
+    var pass = document.getElementById("pass").value;
+    if (!email || !pass) { renderAuth(mode, {type:"err", text:"Vyplňte e-mail i heslo."}); return; }
+    var btn = document.getElementById("submitBtn");
+    btn.disabled = true; btn.textContent = "Chvilku…";
+
+    var action = mode === "login"
+      ? sb.auth.signInWithPassword({ email: email, password: pass })
+      : sb.auth.signUp({ email: email, password: pass });
+
+    action.then(function(res){
+      if (res.error) { renderAuth(mode, {type:"err", text: translateAuthError(res.error.message)}); return; }
+      if (mode === "signup" && res.data && res.data.user && !res.data.session) {
+        renderAuth("login", {type:"ok", text:"Účet vytvořen. Pokud je potřeba potvrzení e-mailem, zkontrolujte schránku, pak se přihlaste."});
+        return;
+      }
+      boot();
+    });
+  });
+}
+
+function translateAuthError(msg){
+  if (/already registered/i.test(msg)) return "Tento e-mail už je zaregistrovaný — zkuste se přihlásit.";
+  if (/invalid login credentials/i.test(msg)) return "Špatný e-mail nebo heslo.";
+  if (/password.*(6|least)/i.test(msg)) return "Heslo musí mít alespoň 6 znaků.";
+  return msg;
+}
+
+/* ============ DATA LOADING ============ */
+function loadData(){
+  app.innerHTML = '<div class="loading">Načítám slovíčka…</div>';
+  Promise.all([
+    sb.from("categories").select("*").order("sort_order"),
+    sb.from("words").select("*"),
+    sb.from("progress").select("word_id, box")
+  ]).then(function(results){
+    var catsRes = results[0], wordsRes = results[1], progRes = results[2];
+    if (catsRes.error || wordsRes.error || progRes.error) {
+      app.innerHTML = '<div class="loading">Nepodařilo se načíst data. Zkuste obnovit stránku.</div>';
+      return;
+    }
+    CATEGORIES = catsRes.data || [];
+    WORDS = wordsRes.data || [];
+    progress = {};
+    (progRes.data || []).forEach(function(r){ progress[r.word_id] = r.box; });
+    WORDS.forEach(function(w){ if (!(w.id in progress)) progress[w.id] = 1; });
+    curCat = CATEGORIES.length ? CATEGORIES[0].id : null;
+    renderTrainer();
+  });
+}
+
+/* ============ PROGRESS (writes through to Supabase) ============ */
+function setBox(wordId, box){
+  progress[wordId] = box;
+  renderStats();
+  sb.from("progress").upsert({
+    user_id: currentUser.id,
+    word_id: wordId,
+    box: box,
+    updated_at: new Date().toISOString()
+  }).then(function(res){
+    if (res.error) console.error("Nepodařilo se uložit pokrok:", res.error.message);
+  });
+}
+function bumpUp(id){ setBox(id, Math.min(3, (progress[id]||1) + 1)); }
+function bumpDown(id){ setBox(id, 1); }
+
+function poolForCat(){ return WORDS.filter(function(w){ return w.category_id === curCat; }); }
+function catLabel(id){ var c = CATEGORIES.find(function(x){ return x.id === id; }); return c ? c.label : ""; }
+
+function weightedPick(){
+  var pool = poolForCat();
+  var weights = {1:5, 2:2, 3:1};
+  var bag = [];
+  pool.forEach(function(w){ var n = weights[progress[w.id]] || 1; for (var i=0;i<n;i++) bag.push(w); });
+  if (bag.length === 0) bag = pool;
+  return bag.length ? bag[Math.floor(Math.random()*bag.length)] : null;
+}
+
+function renderStats(){
+  var pool = poolForCat();
+  var learning = 0, known = 0;
+  pool.forEach(function(w){ if ((progress[w.id]||1) >= 3) known++; else learning++; });
+  var elL = document.getElementById("nLearning"), elK = document.getElementById("nKnown");
+  if (elL) elL.textContent = learning;
+  if (elK) elK.textContent = known;
+}
+
+/* ============ TRAINER UI ============ */
+function renderTrainer(){
+  app.innerHTML =
+    '<div class="topbar"><div class="who">' + currentUser.email + '</div><button class="logout" id="logoutBtn">Odhlásit se</button></div>' +
+    '<div class="cat-row"><div class="cat-pill">🗃️<select id="catSelect" aria-label="Vyberte téma"></select></div></div>' +
+    '<div class="dir-row"><div class="dir-toggle" role="group" aria-label="Směr překladu">' +
+      '<button class="dir-btn" id="dirCzRu" aria-pressed="true">CZ → RU</button>' +
+      '<button class="dir-btn" id="dirRuCz" aria-pressed="false">RU → CZ</button>' +
+    '</div></div>' +
+    '<div class="tabs" role="tablist" aria-label="Režim procvičování">' +
+      '<button class="tab" role="tab" aria-selected="true" data-mode="cards">Kartičky</button>' +
+      '<button class="tab" role="tab" aria-selected="false" data-mode="quiz">Kvíz</button>' +
+      '<button class="tab" role="tab" aria-selected="false" data-mode="type">Napiš</button>' +
+    '</div>' +
+    '<div class="stats">' +
+      '<div class="stat stat-learning"><div class="stat-n" id="nLearning">0</div><div class="stat-lbl">učím se</div></div>' +
+      '<div class="stat stat-known"><div class="stat-n" id="nKnown">0</div><div class="stat-lbl">umím</div></div>' +
+    '</div>' +
+    '<div id="modeCards"></div>' +
+    '<div id="modeQuiz" style="display:none;"></div>' +
+    '<div id="modeType" style="display:none;"></div>' +
+    '<div class="note">Pokrok se ukládá k vašemu účtu — funguje na každém zařízení.</div>';
+
+  var catSelect = document.getElementById("catSelect");
+  CATEGORIES.forEach(function(c){
+    var o = document.createElement("option");
+    o.value = c.id; o.textContent = c.label;
+    catSelect.appendChild(o);
+  });
+  catSelect.value = curCat;
+  catSelect.addEventListener("change", function(e){ curCat = e.target.value; renderStats(); refreshCurrentMode(); });
+
+  document.getElementById("logoutBtn").addEventListener("click", function(){ sb.auth.signOut().then(boot); });
+
+  document.getElementById("dirCzRu").addEventListener("click", function(){ setDirection("cz-ru"); });
+  document.getElementById("dirRuCz").addEventListener("click", function(){ setDirection("ru-cz"); });
+
+  var tabs = document.querySelectorAll(".tab");
+  tabs.forEach(function(t){
+    t.addEventListener("click", function(){
+      tabs.forEach(function(o){ o.setAttribute("aria-selected","false"); });
+      t.setAttribute("aria-selected","true");
+      activeMode = t.dataset.mode;
+      document.getElementById("modeCards").style.display = activeMode === "cards" ? "" : "none";
+      document.getElementById("modeQuiz").style.display  = activeMode === "quiz"  ? "" : "none";
+      document.getElementById("modeType").style.display  = activeMode === "type"  ? "" : "none";
+      refreshCurrentMode();
+    });
+  });
+
+  renderStats();
+  refreshCurrentMode();
+}
+
+function setDirection(d){
+  direction = d;
+  var a = document.getElementById("dirCzRu"), b = document.getElementById("dirRuCz");
+  if (a) a.setAttribute("aria-pressed", d === "cz-ru" ? "true" : "false");
+  if (b) b.setAttribute("aria-pressed", d === "ru-cz" ? "true" : "false");
+  refreshCurrentMode();
+}
+
+function refreshCurrentMode(){
+  if (activeMode === "cards") renderCard();
+  if (activeMode === "quiz") renderQuiz();
+  if (activeMode === "type") renderType();
+}
+
+/* ---------- CARDS ---------- */
+var curCard = null;
+function renderCard(){
+  curCard = weightedPick();
+  var box = document.getElementById("modeCards");
+  if (!curCard) { box.innerHTML = '<div class="hint">V tomto tématu zatím nejsou žádná slova.</div>'; return; }
+  var frontIsCz = direction === "cz-ru";
+  var frontTxt = frontIsCz ? curCard.cz : curCard.ru;
+  var backTxt = frontIsCz ? curCard.ru : curCard.cz;
+  var frontCls = frontIsCz ? "word-cz" : "word-ru";
+  var backCls = frontIsCz ? "word-ru" : "word-cz";
+
+  box.innerHTML =
+    '<div class="stage"><button class="card-btn" id="flipBtn" aria-label="Otočit kartičku">' +
+      '<div class="card" id="cardEl">' +
+        '<div class="face front"><div class="punch"></div><div class="face-inner"><div class="' + frontCls + '">' + esc(frontTxt) + '</div></div><div class="face-tag">klepni pro překlad</div></div>' +
+        '<div class="face back"><div class="punch"></div><div class="face-inner"><div class="' + backCls + '">' + esc(backTxt) + '</div></div><div class="face-tag">' + esc(catLabel(curCard.category_id)) + '</div></div>' +
+      '</div>' +
+    '</button></div>' +
+    '<div class="hint">Klepni na kartičku, pak ohodnoť, jak dobře jsi to věděla.</div>' +
+    '<div class="assess"><button class="btn-no" id="btnNo" disabled>😕 Ještě ne</button><button class="btn-yes" id="btnYes" disabled>✓ Umím</button></div>';
+
+  var cardEl = document.getElementById("cardEl");
+  document.getElementById("flipBtn").addEventListener("click", function(){
+    cardEl.classList.toggle("flipped");
+    var flipped = cardEl.classList.contains("flipped");
+    document.getElementById("btnYes").disabled = !flipped;
+    document.getElementById("btnNo").disabled = !flipped;
+  });
+  document.getElementById("btnYes").addEventListener("click", function(){ bumpUp(curCard.id); setTimeout(renderCard, 180); });
+  document.getElementById("btnNo").addEventListener("click", function(){ bumpDown(curCard.id); setTimeout(renderCard, 180); });
+}
+
+/* ---------- QUIZ ---------- */
+function renderQuiz(){
+  var w = weightedPick();
+  var box = document.getElementById("modeQuiz");
+  if (!w) { box.innerHTML = '<div class="hint">V tomto tématu zatím nejsou žádná slova.</div>'; return; }
+  var pool = poolForCat();
+  var czToRu = direction === "cz-ru";
+
+  box.innerHTML =
+    '<div class="quiz-prompt"><div class="quiz-eyebrow">' + (czToRu ? "co to znamená?" : "jak se to řekne česky?") + '</div><div class="quiz-word">' + esc(czToRu ? w.cz : w.ru) + '</div></div>' +
+    '<div class="opts" id="quizOpts"></div>';
+
+  var distractors = [], tries = 0;
+  while (distractors.length < 3 && tries < 50 && pool.length > 1) {
+    tries++;
+    var d = pool[Math.floor(Math.random()*pool.length)];
+    if (d.id !== w.id && distractors.indexOf(d) === -1) distractors.push(d);
+  }
+  var opts = distractors.concat([w]).sort(function(){ return Math.random()-0.5; });
+  var optsEl = document.getElementById("quizOpts");
+  opts.forEach(function(o){
+    var b = document.createElement("button");
+    b.className = "opt"; b.textContent = czToRu ? o.ru : o.cz;
+    b.addEventListener("click", function(){
+      var allBtns = optsEl.querySelectorAll(".opt");
+      allBtns.forEach(function(x){ x.disabled = true; });
+      if (o.id === w.id) { b.classList.add("correct"); bumpUp(w.id); }
+      else {
+        b.classList.add("wrong");
+        var correctText = czToRu ? w.ru : w.cz;
+        allBtns.forEach(function(x){ if (x.textContent === correctText) x.classList.add("correct"); });
+        bumpDown(w.id);
+      }
+      setTimeout(renderQuiz, 850);
+    });
+    optsEl.appendChild(b);
+  });
+}
+
+/* ---------- TYPE ---------- */
+var curType = null;
+function renderType(){
+  curType = weightedPick();
+  var box = document.getElementById("modeType");
+  if (!curType) { box.innerHTML = '<div class="hint">V tomto tématu zatím nejsou žádná slova.</div>'; return; }
+  var czToRu = direction === "cz-ru";
+
+  box.innerHTML =
+    '<div class="type-prompt"><div class="type-eyebrow">' + (czToRu ? "napiš česky" : "napiš rusky") + '</div><div class="type-word">' + esc(czToRu ? curType.ru : curType.cz) + '</div></div>' +
+    '<div class="type-input-row"><label class="sr-only" for="typeInput">Odpověď</label><input class="type-input" id="typeInput" type="text" placeholder="…" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="type-check" id="typeCheckBtn">Zkontrolovat</button></div>' +
+    '<div id="typeFeedback"></div>';
+
+  var input = document.getElementById("typeInput");
+  input.focus();
+
+  function check(){
+    var czToRu2 = direction === "cz-ru";
+    var val = input.value.trim().toLowerCase();
+    if (!val) return;
+    input.disabled = true;
+    var answer = czToRu2 ? curType.cz : curType.ru;
+    var fb = document.getElementById("typeFeedback");
+    if (val === answer.trim().toLowerCase()) {
+      fb.innerHTML = '<div class="type-feedback fb-ok">✓ Správně — <b>' + esc(answer) + '</b></div>';
+      bumpUp(curType.id);
+    } else {
+      fb.innerHTML = '<div class="type-feedback fb-no">Správně je: <b>' + esc(answer) + '</b></div>';
+      bumpDown(curType.id);
+    }
+    setTimeout(renderType, 1300);
+  }
+  document.getElementById("typeCheckBtn").addEventListener("click", check);
+  input.addEventListener("keydown", function(e){ if (e.key === "Enter") check(); });
+}
+
+function esc(s){
+  var d = document.createElement("div");
+  d.textContent = s == null ? "" : s;
+  return d.innerHTML;
+}
+
+/* ============ BOOT ============ */
+function boot(){
+  sb.auth.getUser().then(function(res){
+    currentUser = res.data && res.data.user ? res.data.user : null;
+    if (currentUser) { loadData(); }
+    else { renderAuth("login"); }
+  });
+}
+
+boot();
+})();
+</script>
+
+</body>
+</html>
